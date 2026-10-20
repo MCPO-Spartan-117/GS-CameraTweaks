@@ -70,6 +70,8 @@ public class Plugin : BaseUnityPlugin {
 	private static float CameraScroll;
 	private static float? CameraScrolltemp = null;
 
+	internal static bool prepatcher = false;
+
 	public void Awake() {
 #if ENGINE
 		Debugger.Break();
@@ -143,6 +145,11 @@ public class Plugin : BaseUnityPlugin {
 			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.AddRot)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.ReplacecamEffectMult)));
 		}
 
+		if(typeof(CameraFollow).GetMethod("OnDestroy") != null) {
+			_harmony.Patch(Method(typeof(CameraFollow), "OnDestroy"), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.DestroyCam)));
+			prepatcher = true;
+		}
+
 		_harmony.PatchAll();
 
 		if(Camera.main != null) {
@@ -180,6 +187,10 @@ public class Plugin : BaseUnityPlugin {
 					_harmony.Patch(orig, prefix: new HarmonyMethod(patch));
 				} else {
 					_harmony.Unpatch(orig, patch);
+				}
+
+				if(prepatcher && cam != null) {
+					cam.GetComponent<PixelPerfectCamera>().enabled = !DisablePerfectPixelFilter.Value;
 				}
 				InternalDisablePerfectPixelFilter = configval;
 			}
@@ -502,6 +513,12 @@ public class Plugin : BaseUnityPlugin {
 					break;
 				}
 			}
+			return (IEnumerable<CodeInstruction>)codes;
+		}
+
+		public static IEnumerable<CodeInstruction> DestroyCam(IEnumerable<CodeInstruction> instructions) {
+			List<CodeInstruction> codes = new(instructions);
+			codes.InsertRange(0, [new(Ldnull), StoreField(typeof(Plugin), nameof(Plugin.cam))]);
 			return (IEnumerable<CodeInstruction>)codes;
 		}
 	}

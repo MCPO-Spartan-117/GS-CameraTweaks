@@ -1,5 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="../vars.targets" />
+  <Import Project="../../vars.targets" />
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>$(ProjectName)</AssemblyName>
@@ -18,7 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="..\\vars.targets" Link="vars.targets" />
+    <None Include="..\\..\\vars.targets" Link="vars.targets" />
     <PackageReference Include="UnityEngine.Modules" Version="2021.1.16" IncludeAssets="compile" />
     <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
     <PackageReference Include="BepInEx.Core" Version="5.*" />
