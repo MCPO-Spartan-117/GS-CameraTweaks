@@ -28,6 +28,10 @@
     <Reference Include="Assembly-CSharp" Publicize="true">
       <HintPath>$(GameAssembliesDir)/Assembly-CSharp.dll</HintPath>
     </Reference>
+
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime" Publicize="true">
+      <HintPath>$(GameAssembliesDir)/Unity.RenderPipelines.Universal.Runtime.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">

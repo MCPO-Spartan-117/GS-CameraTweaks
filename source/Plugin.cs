@@ -11,6 +11,7 @@ using HarmonyLib;
 using static HarmonyLib.AccessTools;
 using static HarmonyLib.CodeInstruction;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering.Universal;
 
 namespace CameraTweaks;
 
@@ -25,6 +26,8 @@ public class Plugin : BaseUnityPlugin {
 	internal static ConfigEntry<bool> Apply;
 	internal static ConfigEntry<bool> CameraScrollEnabled;
 	internal static bool InternalCameraScrollEnabled;
+	internal static ConfigEntry<bool> DisablePerfectPixelFilter;
+	internal static bool InternalDisablePerfectPixelFilter;
 
 	internal static ConfigEntry<float> DefaultCameraScroll;
 	internal static ConfigEntry<float> MinCameraScroll;
@@ -54,6 +57,8 @@ public class Plugin : BaseUnityPlugin {
 		Apply = Config.Bind("Patches", "Apply", false, "Applies everything in this section, for use in the config manager");
 		CameraScrollEnabled = Config.Bind("Patches", "CameraScroll", true, "Enables Camera Scrolling");
 		InternalCameraScrollEnabled = CameraScrollEnabled.Value;
+		DisablePerfectPixelFilter = Config.Bind("Patches", "DisablePerfectPixelFilter", false, "Disables the pixel alignment filter");
+		InternalDisablePerfectPixelFilter = DisablePerfectPixelFilter.Value;
 
 		DefaultCameraScroll = Config.Bind("CameraScroll.Camera", "Default", 10f, "The default scroll value");
 		CameraScroll = DefaultCameraScroll.Value;
@@ -74,6 +79,10 @@ public class Plugin : BaseUnityPlugin {
 
 		if(InternalCameraScrollEnabled) {
 			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.LateUpdate)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.CameraScrollTrans)));
+		}
+
+		if(InternalDisablePerfectPixelFilter) {
+			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.Awake)), prefix: new HarmonyMethod(typeof(Patches), nameof(Patches.DisablePPC)));
 		}
 
 		_harmony.PatchAll();
@@ -99,6 +108,18 @@ public class Plugin : BaseUnityPlugin {
 					_harmony.Unpatch(orig, patch);
 				}
 				InternalCameraScrollEnabled = configval;
+			}
+
+			configval = DisablePerfectPixelFilter.Value;
+			if(configval != InternalDisablePerfectPixelFilter) {
+				orig = Method(typeof(CameraFollow), nameof(CameraFollow.Awake));
+				patch = Method(typeof(Patches), nameof(Patches.DisablePPC));
+				if(configval) {
+					_harmony.Patch(orig, prefix: new HarmonyMethod(patch));
+				} else {
+					_harmony.Unpatch(orig, patch);
+				}
+				InternalDisablePerfectPixelFilter = configval;
 			}
 		}
 	}
@@ -205,6 +226,10 @@ public class Plugin : BaseUnityPlugin {
 			}
 
 			return (IEnumerable<CodeInstruction>)codes;
+		}
+
+		static internal void DisablePPC(CameraFollow __instance) {
+			__instance.GetComponent<PixelPerfectCamera>().enabled = false;
 		}
 	}
 }
