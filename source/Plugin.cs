@@ -1,4 +1,7 @@
-﻿using System.Runtime.CompilerServices;
+﻿#if ENGINE
+using System.Diagnostics;
+#endif
+using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using static System.Reflection.Emit.OpCodes;
 using BepInEx;
@@ -37,6 +40,9 @@ public class Plugin : BaseUnityPlugin {
 	private static float? CameraScrolltemp = null;
 
 	public void Awake() {
+#if ENGINE
+		Debugger.Break();
+#endif
 		Instance = this;
 
 		DefaultCameraScroll = Config.Bind("CameraScroll.Camera", "Default", 10f, "The default scroll value");
@@ -57,6 +63,10 @@ public class Plugin : BaseUnityPlugin {
 		KeyTempReset = Config.Bind("CameraScroll.Keybindings", "KeyTempReset", KeyCode.Mouse4, "Toggles default and modified scroll");
 
 		_harmony.PatchAll();
+	}
+
+	private void OnDestroy() {
+		_harmony?.UnpatchSelf();
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
