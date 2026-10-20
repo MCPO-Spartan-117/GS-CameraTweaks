@@ -13,6 +13,7 @@
 			https://nuget.samboy.dev/v3/index.json
 		</RestoreAdditionalProjectSources>
 		<Platforms>AnyCPU;x64;x86</Platforms>
+		<Deterministic>true</Deterministic>
 		<DebugType>embedded</DebugType>
 	</PropertyGroup>
 
