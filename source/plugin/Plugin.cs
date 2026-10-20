@@ -205,7 +205,7 @@ public class Plugin : BaseUnityPlugin {
 					_harmony.Unpatch(orig, patch);
 				}
 				InternalCameraZoomEnabled = configval;
- 			}
+			}
 
 			configval = DisableScreenCrack.Value;
 			if(configval != InternalDisableScreenCrack) {
@@ -261,15 +261,14 @@ public class Plugin : BaseUnityPlugin {
 
 		KeyCode? keyconfig = null;
 		switch(mod) {
-			case Modifier.Scroll: {
+			case Modifier.Scroll:
 				keyconfig = MouseScrollModifier.Value;
-			break;
-			} case Modifier.Zoom: {
+				break;
+			case Modifier.Zoom:
 				keyconfig = MouseZoomModifier.Value;
-			break;
-			} default: {
+				break;
+			default:
 				return false;
-			}
 		}
 
 		if(keyconfig != null) {
