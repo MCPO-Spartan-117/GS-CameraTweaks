@@ -1,78 +1,78 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-  <Import Project="../../vars.targets" />
-  <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
-    <AssemblyName>Pre$(ProjectName)</AssemblyName>
-    <Product>Template description</Product>
-    <Version>1.0.0</Version>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <LangVersion>latest</LangVersion>
-    <RestoreAdditionalProjectSources>
+	<Import Project="../../vars.targets"/>
+	<PropertyGroup>
+		<TargetFramework>net48</TargetFramework>
+		<AssemblyName>Pre$(ProjectName)</AssemblyName>
+		<Product>Template description</Product>
+		<Version>1.0.0</Version>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<LangVersion>latest</LangVersion>
+		<RestoreAdditionalProjectSources>
 			https://api.nuget.org/v3/index.json;
 			https://nuget.bepinex.dev/v3/index.json;
 			https://nuget.samboy.dev/v3/index.json
 		</RestoreAdditionalProjectSources>
-    <Platforms>AnyCPU;x64;x86</Platforms>
-    <DebugType>embedded</DebugType>
-  </PropertyGroup>
+		<Platforms>AnyCPU;x64;x86</Platforms>
+		<DebugType>embedded</DebugType>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <None Include="..\\..\\vars.targets" Link="vars.targets" />
-    <PackageReference Include="UnityEngine.Modules" Version="2021.1.16" IncludeAssets="compile" />
-    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
-    <Reference Include="BepInEx.Core">
-      <HintPath>$(BepInExDir)/core/BepInEx.dll</HintPath>
-    </Reference>
-    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*" />
-    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
-    <Reference Include="HarmonyX">
-      <HintPath>$(BepInExDir)/core/0Harmony.dll</HintPath>
-    </Reference>
-    <Reference Include="Mono.Cecil">
-      <HintPath>$(BepInExDir)/core/Mono.Cecil.dll</HintPath>
-    </Reference>
-    <Reference Include="MonoMod.RuntimeDetour">
-      <HintPath>$(BepInExDir)/core/MonoMod.RuntimeDetour.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+	<ItemGroup>
+		<None Include="..\\..\\vars.targets" Link="vars.targets"/>
+		<PackageReference Include="UnityEngine.Modules" Version="2021.1.16" IncludeAssets="compile"/>
+		<PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
+		<Reference Include="BepInEx.Core">
+			<HintPath>$(BepInExDir)/core/BepInEx.dll</HintPath>
+		</Reference>
+		<PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
+		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all"/>
+		<Reference Include="HarmonyX">
+			<HintPath>$(BepInExDir)/core/0Harmony.dll</HintPath>
+		</Reference>
+		<Reference Include="Mono.Cecil">
+			<HintPath>$(BepInExDir)/core/Mono.Cecil.dll</HintPath>
+		</Reference>
+		<Reference Include="MonoMod.RuntimeDetour">
+			<HintPath>$(BepInExDir)/core/MonoMod.RuntimeDetour.dll</HintPath>
+		</Reference>
+	</ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-  </ItemGroup>
+	<ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+		<PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Remove="images\\**\\*.png;images\\**\\*.jpg;images\\**\\*.jpeg;assets\\**\\*.png;assets\\**\\*.jpg;assets\\**\\*.jpeg" />
-    <Content Remove="images\\**\\*.png;images\\**\\*.jpg;images\\**\\*.jpeg;assets\\**\\*.png;assets\\**\\*.jpg;assets\\**\\*.jpeg" />
-    <EmbeddedResource Include="images\\**\\*.png;images\\**\\*.jpg;images\\**\\*.jpeg;assets\\**\\*.png;assets\\**\\*.jpg;assets\\**\\*.jpeg" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Remove="images\\**\\*.png;images\\**\\*.jpg;images\\**\\*.jpeg;assets\\**\\*.png;assets\\**\\*.jpg;assets\\**\\*.jpeg"/>
+		<Content Remove="images\\**\\*.png;images\\**\\*.jpg;images\\**\\*.jpeg;assets\\**\\*.png;assets\\**\\*.jpg;assets\\**\\*.jpeg"/>
+		<EmbeddedResource Include="images\\**\\*.png;images\\**\\*.jpg;images\\**\\*.jpeg;assets\\**\\*.png;assets\\**\\*.jpg;assets\\**\\*.jpeg"/>
+	</ItemGroup>
 
-  <PropertyGroup>
-  <RequiredFilesToCopy>
-  $(AssemblyName).dll
-  </RequiredFilesToCopy>
+	<PropertyGroup>
+		<RequiredFilesToCopy>
+			$(AssemblyName).dll
+		</RequiredFilesToCopy>
 
 
-  <RequiredFoldersToCopy>
-  </RequiredFoldersToCopy>
-  </PropertyGroup>
+		<RequiredFoldersToCopy>
+		</RequiredFoldersToCopy>
+	</PropertyGroup>
 
-  <Target Name="CopyOutputDllsToPluginsFolder" AfterTargets="AfterBuild" Condition="'$(RequiredFilesToCopy)'!=''">
-    <MakeDir Directories="$(BepInExDir)/patchers/$(AssemblyName)" />
-  <CombinePath BasePath="$(OutDir)" Paths="$(RequiredFilesToCopy)">
-    <Output TaskParameter="CombinedPaths" ItemName="RequiredFilesToCopy_Combined" />
-  </CombinePath>
-  <Copy SourceFiles="@(RequiredFilesToCopy_Combined)" DestinationFolder="$(BepInExDir)/patchers/$(AssemblyName)" />
-</Target>
+	<Target Name="CopyOutputDllsToPluginsFolder" AfterTargets="AfterBuild" Condition="'$(RequiredFilesToCopy)'!=''">
+		<MakeDir Directories="$(BepInExDir)/patchers/$(AssemblyName)"/>
+		<CombinePath BasePath="$(OutDir)" Paths="$(RequiredFilesToCopy)">
+			<Output TaskParameter="CombinedPaths" ItemName="RequiredFilesToCopy_Combined"/>
+		</CombinePath>
+		<Copy SourceFiles="@(RequiredFilesToCopy_Combined)" DestinationFolder="$(BepInExDir)/patchers/$(AssemblyName)"/>
+	</Target>
 
-  <Target Name="CopyFoldersToPluginsFolder" AfterTargets="AfterBuild" Condition="'$(RequiredFoldersToCopy)'!=''">
-  <ItemGroup>
-    <RequiredFolders Include="$(RequiredFoldersToCopy.Split(';'))" />
-    <FilesToCopy Include="%(RequiredFolders.Identity)/**/*" />
-  </ItemGroup>
-  <Copy SourceFiles="@(FilesToCopy)" DestinationFiles="@(FilesToCopy->'$(BepInExDir)/patchers/$(AssemblyName)/%(Identity)')" />
-</Target>
+	<Target Name="CopyFoldersToPluginsFolder" AfterTargets="AfterBuild" Condition="'$(RequiredFoldersToCopy)'!=''">
+		<ItemGroup>
+			<RequiredFolders Include="$(RequiredFoldersToCopy.Split(';'))"/>
+			<FilesToCopy Include="%(RequiredFolders.Identity)/**/*"/>
+		</ItemGroup>
+		<Copy SourceFiles="@(FilesToCopy)" DestinationFiles="@(FilesToCopy->'$(BepInExDir)/patchers/$(AssemblyName)/%(Identity)')"/>
+	</Target>
 
-  <Target Name="ValidateTemplatePaths" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(GameAssembliesDir)/Assembly-CSharp.dll')" Text="Could not find Assembly-CSharp.dll. Update BaseGamePath in vars.targets or pass /p:BaseGamePath=... when building." />
-  </Target>
+	<Target Name="ValidateTemplatePaths" BeforeTargets="ResolveReferences">
+		<Error Condition="!Exists('$(GameAssembliesDir)/Assembly-CSharp.dll')" Text="Could not find Assembly-CSharp.dll. Update BaseGamePath in vars.targets or pass /p:BaseGamePath=... when building."/>
+	</Target>
 </Project>
