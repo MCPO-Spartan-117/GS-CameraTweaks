@@ -35,6 +35,8 @@ public class Plugin : BaseUnityPlugin {
 	internal static bool InternalDisableScreenCrack;
 	internal static ConfigEntry<bool> DisableBloodSplat;
 	internal static bool InternalDisableBloodSplat;
+	internal static ConfigEntry<bool> ChangeableCamEffectMult;
+	internal static bool InternalChangeableCamEffectMult;
 
 	internal static ConfigEntry<float> DefaultCameraScroll;
 	internal static ConfigEntry<float> MinCameraScroll;
@@ -42,6 +44,7 @@ public class Plugin : BaseUnityPlugin {
 	internal static ConfigEntry<float> DefaultCameraZoom;
 	internal static ConfigEntry<float> MinCameraZoom;
 	internal static ConfigEntry<float> MaxCameraZoom;
+	internal static ConfigEntry<float> CamEffectMult;
 
 	internal static ConfigEntry<bool> MouseScrollEnabled;
 	internal static ConfigEntry<KeyCode> MouseScrollModifier;
@@ -84,6 +87,8 @@ public class Plugin : BaseUnityPlugin {
 		InternalDisableScreenCrack = DisableScreenCrack.Value;
 		DisableBloodSplat = Config.Bind("Patches", "DisableBloodSplat", false, "Disables the chance a blood splatter can appear on screen when dismembering a limb");
 		InternalDisableBloodSplat = DisableBloodSplat.Value;
+		ChangeableCamEffectMult = Config.Bind("Patches", "ChangeableCamEffectMult", false, "Instead of reading vanilla effect multipler for the camera, use 'CamEffectMult' from this mod");
+		InternalChangeableCamEffectMult = ChangeableCamEffectMult.Value;
 
 		DefaultCameraScroll = Config.Bind("CameraScroll.Camera", "Default", 10f, "The default scroll value");
 		MinCameraScroll = Config.Bind("CameraScroll.Camera", "Min", 0f, "The minimum scroll value");
@@ -91,6 +96,7 @@ public class Plugin : BaseUnityPlugin {
 		DefaultCameraZoom = Config.Bind("CameraZoom.Camera", "Default", 6.4f, "The default scroll value");
 		MinCameraZoom = Config.Bind("CameraZoom.Camera", "Min", 1f, "The minimum scroll value");
 		MaxCameraZoom = Config.Bind("CameraZoom.Camera", "Max", float.MaxValue, "The maximum scroll value");
+		CamEffectMult = Config.Bind("Camera.Effect", "Mult", 1f, "The effect multipler for the camera");
 
 		MouseScrollEnabled = Config.Bind("CameraScroll.Mouse", "Enabled", true, "If camera scrolling is affected by the mouse wheel");
 		MouseScrollModifier = Config.Bind("CameraScroll.Mouse", "KeyModifier", KeyCode.LeftControl, "Key to hold down for wheel to affect scrolling, set to None to disable modifier requirement");
@@ -130,6 +136,11 @@ public class Plugin : BaseUnityPlugin {
 
 		if(InternalDisableBloodSplat) {
 			_harmony.Patch(Method(typeof(DismemberManager), nameof(DismemberManager.Update)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.NoBloodSplat)));
+		}
+
+		if(InternalChangeableCamEffectMult) {
+			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.AddOffset)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.ReplacecamEffectMult)));
+			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.AddRot)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.ReplacecamEffectMult)));
 		}
 
 		_harmony.PatchAll();
@@ -207,6 +218,22 @@ public class Plugin : BaseUnityPlugin {
 					_harmony.Unpatch(orig, patch);
 				}
 				InternalDisableBloodSplat = configval;
+			}
+
+			configval = ChangeableCamEffectMult.Value;
+			if(configval != InternalChangeableCamEffectMult) {
+				orig = Method(typeof(CameraFollow), nameof(CameraFollow.AddOffset));
+				patch = Method(typeof(Patches), nameof(Patches.ReplacecamEffectMult));
+				MethodBase orig2 = Method(typeof(CameraFollow), nameof(CameraFollow.AddOffset));
+				MethodInfo patch2 = Method(typeof(Patches), nameof(Patches.ReplacecamEffectMult));
+				if(configval) {
+					_harmony.Patch(orig, transpiler: new HarmonyMethod(patch));
+					_harmony.Patch(orig2, transpiler: new HarmonyMethod(patch2));
+				} else {
+					_harmony.Unpatch(orig, patch);
+					_harmony.Unpatch(orig2, patch2);
+				}
+				InternalChangeableCamEffectMult = configval;
 			}
 		}
 	}
@@ -462,6 +489,19 @@ public class Plugin : BaseUnityPlugin {
 				}
 			}
 
+			return (IEnumerable<CodeInstruction>)codes;
+		}
+
+		public static IEnumerable<CodeInstruction> ReplacecamEffectMult(IEnumerable<CodeInstruction> instructions) {
+			List<CodeInstruction> codes = new(instructions);
+			FieldInfo cammult = Field(typeof(CameraFollow), nameof(CameraFollow.camEffectMult));
+			for(int i = 0; i < codes.Count; i++) {
+				if(codes[i].opcode == Ldarg_0 && codes[i + 1].LoadsField(cammult)) {
+					codes.RemoveRange(i, 2);
+					codes.InsertRange(i, [LoadField(typeof(Plugin), nameof(Plugin.CamEffectMult)), Call(typeof(ConfigEntry<float>), "get_" + nameof(ConfigEntry<float>.Value))]);
+					break;
+				}
+			}
 			return (IEnumerable<CodeInstruction>)codes;
 		}
 	}
