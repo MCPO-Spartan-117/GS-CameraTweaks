@@ -21,10 +21,20 @@
 		<None Include="..\\..\\vars.targets" Link="vars.targets"/>
 		<PackageReference Include="UnityEngine.Modules" Version="2021.1.16" IncludeAssets="compile"/>
 		<PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
-		<PackageReference Include="BepInEx.Core" Version="5.*"/>
+		<Reference Include="BepInEx.Core">
+			<HintPath>$(BepInExDir)/core/BepInEx.dll</HintPath>
+		</Reference>
 		<PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
 		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all"/>
-		<PackageReference Include="HarmonyX" Version="2.9.0"/>
+		<Reference Include="HarmonyX">
+			<HintPath>$(BepInExDir)/core/0Harmony.dll</HintPath>
+		</Reference>
+		<Reference Include="Mono.Cecil">
+			<HintPath>$(BepInExDir)/core/Mono.Cecil.dll</HintPath>
+		</Reference>
+		<Reference Include="MonoMod.RuntimeDetour">
+			<HintPath>$(BepInExDir)/core/MonoMod.RuntimeDetour.dll</HintPath>
+		</Reference>
 		<Reference Include="Assembly-CSharp" Publicize="true">
 			<HintPath>$(GameAssembliesDir)/Assembly-CSharp.dll</HintPath>
 		</Reference>
