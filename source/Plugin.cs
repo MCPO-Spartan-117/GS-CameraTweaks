@@ -59,48 +59,8 @@ public class Plugin : BaseUnityPlugin {
 		_harmony.PatchAll();
 	}
 
-	public void Update() {
-		if(MouseScrollEnabled.Value && ModifierHandling()) {
-			CameraScroll += Input.mouseScrollDelta.y * MouseScrollMultiplier.Value;
-			if(CameraScroll < MinCameraScroll.Value) {
-				CameraScroll = MinCameraScroll.Value;
-			} else if(CameraScroll > MaxCameraScroll.Value) {
-				CameraScroll = MaxCameraScroll.Value;
-			}
-		}
-
-		if(KeyboardEnabled.Value) {
-			if(Input.GetKeyDown(KeyPlus.Value)) {
-				CameraScroll += KeyValue.Value;
-				if(CameraScroll > MaxCameraScroll.Value) {
-					CameraScroll = MaxCameraScroll.Value;
-				}
-			} else if(Input.GetKeyDown(KeyMinus.Value)) {
-				CameraScroll -= KeyValue.Value;
-				if(CameraScroll < MinCameraScroll.Value) {
-					CameraScroll = MinCameraScroll.Value;
-				}
-			}
-		}
-
-		if(Input.GetKeyDown(KeyReset.Value)) {
-			CameraScroll = DefaultCameraScroll.Value;
-			CameraScrolltemp = null;
-		}
-
-		if(Input.GetKeyDown(KeyTempReset.Value)) {
-			if(CameraScrolltemp == null) {
-				CameraScrolltemp = CameraScroll;
-				CameraScroll = DefaultCameraScroll.Value;
-			} else {
-				CameraScroll = (float)CameraScrolltemp;
-				CameraScrolltemp = null;
-			}
-		}
-	}
-
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public bool ModifierHandling() {
+	static public bool ModifierHandling() {
 		KeyCode keyconfig = MouseScrollModifier.Value;
 		if(keyconfig == KeyCode.None) {
 			return true;
@@ -109,6 +69,50 @@ public class Plugin : BaseUnityPlugin {
 		}
 	}
 
+	static class AutoPatches {
+		[HarmonyPatch(typeof(CameraFollow), nameof(CameraFollow.Update))]
+		static class FCameraU {
+			static internal void Postfix() {
+				if(MouseScrollEnabled.Value && ModifierHandling()) {
+					CameraScroll += Input.mouseScrollDelta.y * MouseScrollMultiplier.Value;
+					if(CameraScroll < MinCameraScroll.Value) {
+						CameraScroll = MinCameraScroll.Value;
+					} else if(CameraScroll > MaxCameraScroll.Value) {
+						CameraScroll = MaxCameraScroll.Value;
+					}
+				}
+
+				if(KeyboardEnabled.Value) {
+					if(Input.GetKeyDown(KeyPlus.Value)) {
+						CameraScroll += KeyValue.Value;
+						if(CameraScroll > MaxCameraScroll.Value) {
+							CameraScroll = MaxCameraScroll.Value;
+						}
+					} else if(Input.GetKeyDown(KeyMinus.Value)) {
+						CameraScroll -= KeyValue.Value;
+						if(CameraScroll < MinCameraScroll.Value) {
+							CameraScroll = MinCameraScroll.Value;
+						}
+					}
+				}
+
+				if(Input.GetKeyDown(KeyReset.Value)) {
+					CameraScroll = DefaultCameraScroll.Value;
+					CameraScrolltemp = null;
+				}
+
+				if(Input.GetKeyDown(KeyTempReset.Value)) {
+					if(CameraScrolltemp == null) {
+						CameraScrolltemp = CameraScroll;
+						CameraScroll = DefaultCameraScroll.Value;
+					} else {
+						CameraScroll = (float)CameraScrolltemp;
+						CameraScrolltemp = null;
+					}
+				}
+			}
+		}
+	}
 
 	[HarmonyPatch(typeof(CameraFollow), nameof(CameraFollow.LateUpdate))]
 	static class CameraScrollPatch {
