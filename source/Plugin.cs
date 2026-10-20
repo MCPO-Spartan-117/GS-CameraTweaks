@@ -31,6 +31,10 @@ public class Plugin : BaseUnityPlugin {
 	internal static bool InternalCameraZoomEnabled;
 	internal static ConfigEntry<bool> DisablePerfectPixelFilter;
 	internal static bool InternalDisablePerfectPixelFilter;
+	internal static ConfigEntry<bool> DisableScreenCrack;
+	internal static bool InternalDisableScreenCrack;
+	internal static ConfigEntry<bool> DisableBloodSplat;
+	internal static bool InternalDisableBloodSplat;
 
 	internal static ConfigEntry<float> DefaultCameraScroll;
 	internal static ConfigEntry<float> MinCameraScroll;
@@ -76,6 +80,10 @@ public class Plugin : BaseUnityPlugin {
 		InternalCameraZoomEnabled = CameraZoomEnabled.Value;
 		DisablePerfectPixelFilter = Config.Bind("Patches", "DisablePerfectPixelFilter", false, "Disables the pixel alignment filter");
 		InternalDisablePerfectPixelFilter = DisablePerfectPixelFilter.Value;
+		DisableScreenCrack = Config.Bind("Patches", "DisableScreenCrack", false, "Disables the chance a bullet crack can appear on screen when shot");
+		InternalDisableScreenCrack = DisableScreenCrack.Value;
+		DisableBloodSplat = Config.Bind("Patches", "DisableBloodSplat", false, "Disables the chance a blood splatter can appear on screen when dismembering a limb");
+		InternalDisableBloodSplat = DisableBloodSplat.Value;
 
 		DefaultCameraScroll = Config.Bind("CameraScroll.Camera", "Default", 10f, "The default scroll value");
 		MinCameraScroll = Config.Bind("CameraScroll.Camera", "Min", 0f, "The minimum scroll value");
@@ -114,6 +122,14 @@ public class Plugin : BaseUnityPlugin {
 
 		if(InternalDisablePerfectPixelFilter) {
 			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.Awake)), prefix: new HarmonyMethod(typeof(Patches), nameof(Patches.DisablePPC)));
+		}
+
+		if(InternalDisableScreenCrack) {
+			_harmony.Patch(Method(typeof(WeaponScript), nameof(WeaponScript.Shoot)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.NoScreenCrack)));
+		}
+
+		if(InternalDisableBloodSplat) {
+			_harmony.Patch(Method(typeof(DismemberManager), nameof(DismemberManager.Update)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.NoBloodSplat)));
 		}
 
 		_harmony.PatchAll();
@@ -168,6 +184,30 @@ public class Plugin : BaseUnityPlugin {
 				}
 				InternalCameraZoomEnabled = configval;
  			}
+
+			configval = DisableScreenCrack.Value;
+			if(configval != InternalDisableScreenCrack) {
+				orig = Method(typeof(WeaponScript), nameof(WeaponScript.Shoot));
+				patch = Method(typeof(Patches), nameof(Patches.NoScreenCrack));
+				if(configval) {
+					_harmony.Patch(orig, transpiler: new HarmonyMethod(patch));
+				} else {
+					_harmony.Unpatch(orig, patch);
+				}
+				InternalDisableScreenCrack = DisableScreenCrack.Value;
+			}
+
+			configval = DisableBloodSplat.Value;
+			if(configval != InternalDisableBloodSplat) {
+				orig = Method(typeof(DismemberManager), nameof(DismemberManager.Update));
+				patch = Method(typeof(Patches), nameof(Patches.NoBloodSplat));
+				if(configval) {
+					_harmony.Patch(orig, transpiler: new HarmonyMethod(patch));
+				} else {
+					_harmony.Unpatch(orig, patch);
+				}
+				InternalDisableBloodSplat = configval;
+			}
 		}
 	}
 
@@ -386,6 +426,43 @@ public class Plugin : BaseUnityPlugin {
 
 		static internal void DisablePPC(CameraFollow __instance) {
 			__instance.GetComponent<PixelPerfectCamera>().enabled = false;
+		}
+
+		public static IEnumerable<CodeInstruction> NoScreenCrack(IEnumerable<CodeInstruction> instructions) {
+			int startidx = -1;
+			List<CodeInstruction> codes = new(instructions);
+			MethodInfo crak = Method(typeof(CameraFollow), nameof(CameraFollow.CreateScreenCrack));
+			for(int i = 0; i < codes.Count; i++) {
+				if(startidx == -1) {
+					if(codes[i].opcode == Ldloc_S && codes[i + 1].opcode == Ldc_R4 && (float)codes[i + 1].operand == 20) {
+						startidx = i;
+					}
+				} else {
+					if(codes[i].Calls(crak)) {
+						codes.RemoveRange(startidx, (i - startidx) + 1);
+						startidx = -1;
+					}
+				}
+			}
+
+			return (IEnumerable<CodeInstruction>)codes;
+		}
+
+		public static IEnumerable<CodeInstruction> NoBloodSplat(IEnumerable<CodeInstruction> instructions) {
+			int startidx = -1;
+			List<CodeInstruction> codes = new(instructions);
+			FieldInfo cam = Field(typeof(CameraFollow), nameof(CameraFollow.cam));
+			MethodInfo spalt = Method(typeof(CameraFollow), nameof(CameraFollow.CreateBloodSplat));
+			for(int i = 0; i < codes.Count; i++) {
+				if(codes[i].LoadsField(cam)) {
+					startidx = i;
+				} else if(codes[i].Calls(spalt)) {
+					codes.RemoveRange(startidx, (i - startidx) + 1);
+					break;
+				}
+			}
+
+			return (IEnumerable<CodeInstruction>)codes;
 		}
 	}
 }
