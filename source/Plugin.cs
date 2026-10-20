@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using static System.Reflection.Emit.OpCodes;
 using BepInEx;
 using BepInEx.Configuration;
@@ -26,25 +27,39 @@ public class Plugin : BaseUnityPlugin {
 	internal static ConfigEntry<bool> Apply;
 	internal static ConfigEntry<bool> CameraScrollEnabled;
 	internal static bool InternalCameraScrollEnabled;
+	internal static ConfigEntry<bool> CameraZoomEnabled;
+	internal static bool InternalCameraZoomEnabled;
 	internal static ConfigEntry<bool> DisablePerfectPixelFilter;
 	internal static bool InternalDisablePerfectPixelFilter;
 
 	internal static ConfigEntry<float> DefaultCameraScroll;
 	internal static ConfigEntry<float> MinCameraScroll;
 	internal static ConfigEntry<float> MaxCameraScroll;
+	internal static ConfigEntry<float> DefaultCameraZoom;
+	internal static ConfigEntry<float> MinCameraZoom;
+	internal static ConfigEntry<float> MaxCameraZoom;
 
 	internal static ConfigEntry<bool> MouseScrollEnabled;
 	internal static ConfigEntry<KeyCode> MouseScrollModifier;
 	internal static ConfigEntry<float> MouseScrollMultiplier;
+	internal static ConfigEntry<bool> MouseZoomEnabled;
+	internal static ConfigEntry<KeyCode> MouseZoomModifier;
+	internal static ConfigEntry<float> MouseZoomMultiplier;
+	internal static ConfigEntry<KeyCode>[] modarr;
 
 	internal static ConfigEntry<bool> KeyboardEnabled;
 	internal static ConfigEntry<KeyCode> KeyPlus;
 	internal static ConfigEntry<KeyCode> KeyMinus;
 	internal static ConfigEntry<float> KeyValue;
+	internal static ConfigEntry<KeyCode> KeyZoomPlus;
+	internal static ConfigEntry<KeyCode> KeyZoomMinus;
+	internal static ConfigEntry<float> KeyZoomValue;
 
+	internal static ConfigEntry<KeyCode> KeyZoomReset;
 	internal static ConfigEntry<KeyCode> KeyReset;
 	internal static ConfigEntry<KeyCode> KeyTempReset;
 
+	internal static Camera cam = null;
 	private static float CameraScroll;
 	private static float? CameraScrolltemp = null;
 
@@ -57,23 +72,35 @@ public class Plugin : BaseUnityPlugin {
 		Apply = Config.Bind("Patches", "Apply", false, "Applies everything in this section, for use in the config manager");
 		CameraScrollEnabled = Config.Bind("Patches", "CameraScroll", true, "Enables Camera Scrolling");
 		InternalCameraScrollEnabled = CameraScrollEnabled.Value;
+		CameraZoomEnabled = Config.Bind("Patches", "CameraZoom", true, "Enables zooming out the camera");
+		InternalCameraZoomEnabled = CameraZoomEnabled.Value;
 		DisablePerfectPixelFilter = Config.Bind("Patches", "DisablePerfectPixelFilter", false, "Disables the pixel alignment filter");
 		InternalDisablePerfectPixelFilter = DisablePerfectPixelFilter.Value;
 
 		DefaultCameraScroll = Config.Bind("CameraScroll.Camera", "Default", 10f, "The default scroll value");
-		CameraScroll = DefaultCameraScroll.Value;
 		MinCameraScroll = Config.Bind("CameraScroll.Camera", "Min", 0f, "The minimum scroll value");
 		MaxCameraScroll = Config.Bind("CameraScroll.Camera", "Max", float.MaxValue, "The maximum scroll value");
+		DefaultCameraZoom = Config.Bind("CameraZoom.Camera", "Default", 6.4f, "The default scroll value");
+		MinCameraZoom = Config.Bind("CameraZoom.Camera", "Min", 1f, "The minimum scroll value");
+		MaxCameraZoom = Config.Bind("CameraZoom.Camera", "Max", float.MaxValue, "The maximum scroll value");
 
 		MouseScrollEnabled = Config.Bind("CameraScroll.Mouse", "Enabled", true, "If camera scrolling is affected by the mouse wheel");
 		MouseScrollModifier = Config.Bind("CameraScroll.Mouse", "KeyModifier", KeyCode.LeftControl, "Key to hold down for wheel to affect scrolling, set to None to disable modifier requirement");
 		MouseScrollMultiplier = Config.Bind("CameraScroll.Mouse", "Multiplier", 1f, "Multiply scrolling by this amount");
+		MouseZoomEnabled = Config.Bind("CameraZoom.Mouse", "Enabled", true, "If camera scrolling is affected by the mouse wheel");
+		MouseZoomModifier = Config.Bind("CameraZoom.Mouse", "KeyModifier", KeyCode.LeftShift, "Key to hold down for wheel to affect scrolling, set to None to disable modifier requirement");
+		MouseZoomMultiplier = Config.Bind("CameraZoom.Mouse", "Multiplier", 1f, "Multiply scrolling by this amount");
+		modarr = [MouseScrollModifier, MouseZoomModifier];
 
 		KeyboardEnabled = Config.Bind("CameraScroll.Keyboard", "Enabled", true, "If camera scrolling is affected by keycodes");
 		KeyPlus = Config.Bind("CameraScroll.Keyboard", "KeyPlus", KeyCode.Equals, "Scrolls the camera farther");
 		KeyMinus = Config.Bind("CameraScroll.Keyboard", "KeyMinus", KeyCode.Minus, "Scrolls the camera closer");
 		KeyValue = Config.Bind("CameraScroll.Keyboard", "KeyValue", 10f, "How much to scroll the camera by");
+		KeyZoomPlus = Config.Bind("CameraZoom.Keyboard", "KeyPlus", KeyCode.RightBracket, "Zooms the camera closer");
+		KeyZoomMinus = Config.Bind("CameraZoom.Keyboard", "KeyMinus", KeyCode.LeftBracket, "Zooms the camera farther");
+		KeyZoomValue = Config.Bind("CameraZoom.Keyboard", "KeyValue", 2f, "How much to zoom the camera by");
 
+		KeyZoomReset = Config.Bind("CameraZoom.Keybindings", "KeyReset", KeyCode.Mouse2, "Reset camera zoom values to default");
 		KeyReset = Config.Bind("CameraScroll.Keybindings", "KeyReset", KeyCode.Mouse3, "Reset camera scroll values to default");
 		KeyTempReset = Config.Bind("CameraScroll.Keybindings", "KeyTempReset", KeyCode.Mouse4, "Toggles default and modified scroll");
 
@@ -81,11 +108,19 @@ public class Plugin : BaseUnityPlugin {
 			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.LateUpdate)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.CameraScrollTrans)));
 		}
 
+		if(InternalCameraZoomEnabled && !InternalDisablePerfectPixelFilter) {
+			_harmony.Patch(Method(typeof(PixelPerfectCamera), nameof(PixelPerfectCamera.OnBeginContextRendering)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.CameraZoomAndPixel)));
+		}
+
 		if(InternalDisablePerfectPixelFilter) {
 			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.Awake)), prefix: new HarmonyMethod(typeof(Patches), nameof(Patches.DisablePPC)));
 		}
 
 		_harmony.PatchAll();
+
+		if(Camera.main != null) {
+			cam = Camera.main;
+		}
 	}
 
 	private void OnDestroy() {
@@ -121,25 +156,73 @@ public class Plugin : BaseUnityPlugin {
 				}
 				InternalDisablePerfectPixelFilter = configval;
 			}
+
+			configval = CameraZoomEnabled.Value;
+			if(!InternalDisablePerfectPixelFilter && configval != InternalCameraZoomEnabled) {
+				orig = Method(typeof(PixelPerfectCamera), nameof(PixelPerfectCamera.OnBeginContextRendering));
+				patch = Method(typeof(Patches), nameof(Patches.CameraZoomAndPixel));
+				if(configval) {
+					_harmony.Patch(orig, transpiler: new HarmonyMethod(patch));
+				} else {
+					_harmony.Unpatch(orig, patch);
+				}
+				InternalCameraZoomEnabled = configval;
+ 			}
 		}
 	}
 
+	internal enum Modifier {
+		Scroll,
+		Zoom
+	}
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	static public bool ModifierHandling() {
-		KeyCode keyconfig = MouseScrollModifier.Value;
-		if(keyconfig == KeyCode.None) {
-			return true;
-		} else {
-			return Input.GetKey(keyconfig);
+	static internal bool ModifierHandling(Modifier mod, ref bool consumed) {
+		if(consumed) {
+			return false;
 		}
+
+		KeyCode? keyconfig = null;
+		switch(mod) {
+			case Modifier.Scroll: {
+				keyconfig = MouseScrollModifier.Value;
+			break;
+			} case Modifier.Zoom: {
+				keyconfig = MouseZoomModifier.Value;
+			break;
+			} default: {
+				return false;
+			}
+		}
+
+		if(keyconfig != null) {
+			if(keyconfig == KeyCode.None) {
+				for(int i = 0; i < modarr.Length; i++) {
+					if(i == (int)mod) {
+						continue;
+					}
+
+					if(Input.GetKey(modarr[i].Value)) {
+						return false;
+					}
+				}
+				return true;
+			} else {
+				if(Input.GetKey((KeyCode)keyconfig)) {
+					consumed = true;
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	static class AutoPatches {
 		[HarmonyPatch(typeof(CameraFollow), nameof(CameraFollow.Update))]
 		static class FCameraU {
 			static internal void Postfix() {
+				bool consumed = false;
 				if(InternalCameraScrollEnabled) {
-					if(MouseScrollEnabled.Value && ModifierHandling()) {
+					if(MouseScrollEnabled.Value && ModifierHandling(Modifier.Scroll, ref consumed)) {
 						CameraScroll += Input.mouseScrollDelta.y * MouseScrollMultiplier.Value;
 						if(CameraScroll < MinCameraScroll.Value) {
 							CameraScroll = MinCameraScroll.Value;
@@ -176,6 +259,50 @@ public class Plugin : BaseUnityPlugin {
 							CameraScrolltemp = null;
 						}
 					}
+				}
+
+				if(CameraZoomEnabled.Value) {
+					if(MouseZoomEnabled.Value && ModifierHandling(Modifier.Zoom, ref consumed)) {
+						cam.orthographicSize -= Input.mouseScrollDelta.y * MouseZoomMultiplier.Value;
+						if(cam.orthographicSize < MinCameraZoom.Value) {
+							cam.orthographicSize = MinCameraZoom.Value;
+						} else if(cam.orthographicSize > MaxCameraZoom.Value) {
+							cam.orthographicSize = MaxCameraZoom.Value;
+						}
+					}
+
+					if(KeyboardEnabled.Value) {
+						if(Input.GetKeyDown(KeyZoomPlus.Value)) {
+							cam.orthographicSize += KeyZoomValue.Value;
+							if(cam.orthographicSize > MaxCameraZoom.Value) {
+								cam.orthographicSize = MaxCameraZoom.Value;
+							}
+						} else if(Input.GetKeyDown(KeyZoomMinus.Value)) {
+							cam.orthographicSize -= KeyZoomValue.Value;
+							if(cam.orthographicSize < MinCameraZoom.Value) {
+								cam.orthographicSize = MinCameraZoom.Value;
+							}
+						}
+					}
+
+					if(Input.GetKeyDown(KeyZoomReset.Value)) {
+						cam.orthographicSize = DefaultCameraZoom.Value;
+					}
+				}
+			}
+		}
+
+		[HarmonyPatch(typeof(CameraFollow), nameof(CameraFollow.Awake))]
+		static class FCameraA {
+			static internal void Postfix(CameraFollow __instance) {
+				cam = __instance.GetComponent<Camera>();
+				if(CameraZoomEnabled.Value) {
+					cam.orthographicSize = DefaultCameraZoom.Value;
+				}
+
+				if(InternalCameraScrollEnabled) {
+					CameraScroll = DefaultCameraScroll.Value;
+					CameraScrolltemp = null;
 				}
 			}
 		}
@@ -223,6 +350,35 @@ public class Plugin : BaseUnityPlugin {
 					}
 					codes.RemoveRange(startidx, endidx - startidx + 1);
 				}
+			}
+
+			return (IEnumerable<CodeInstruction>)codes;
+		}
+
+		static internal IEnumerable<CodeInstruction> CameraZoomAndPixel(IEnumerable<CodeInstruction> instructions) {
+			int startidx = -1;
+			int endidx = -1;
+			List<CodeInstruction> codes = new(instructions);
+			FieldInfo CineComp = Field(typeof(PixelPerfectCamera), nameof(PixelPerfectCamera.m_CinemachineCompatibilityMode));
+			MethodInfo setOrtho = Method(typeof(Camera), "set_" + nameof(Camera.orthographicSize));
+			for(int i = 0; i < codes.Count; i++) {
+				if(startidx == -1) {
+					if(codes[i].opcode == Ldarg_0 && codes[i + 1].LoadsField(CineComp)) {
+						startidx = i;
+					}
+				} else {
+					if(codes[i].Calls(setOrtho)) {
+						endidx = i;
+					}
+				}
+			}
+
+			if(endidx != -1) {
+				List<Label> afterendlabs = codes[endidx + 1].labels;
+				foreach(Label lab in codes[startidx].labels) {
+					afterendlabs.Add(lab);
+				}
+				codes.RemoveRange(startidx, (endidx - startidx) + 1);
 			}
 
 			return (IEnumerable<CodeInstruction>)codes;
