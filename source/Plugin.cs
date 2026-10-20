@@ -3,10 +3,12 @@ using System.Diagnostics;
 #endif
 using System.Runtime.CompilerServices;
 using System.Collections.Generic;
+using System.Reflection;
 using static System.Reflection.Emit.OpCodes;
 using BepInEx;
 using BepInEx.Configuration;
 using HarmonyLib;
+using static HarmonyLib.AccessTools;
 using static HarmonyLib.CodeInstruction;
 using UnityEngine;
 
@@ -19,6 +21,10 @@ public class Plugin : BaseUnityPlugin {
 	public const string ModVersion = "1.0.0";
 	public static Plugin Instance { get; private set; } = null!;
 	private readonly Harmony _harmony = new(ModGUID);
+
+	internal static ConfigEntry<bool> Apply;
+	internal static ConfigEntry<bool> CameraScrollEnabled;
+	internal static bool InternalCameraScrollEnabled;
 
 	internal static ConfigEntry<float> DefaultCameraScroll;
 	internal static ConfigEntry<float> MinCameraScroll;
@@ -45,6 +51,10 @@ public class Plugin : BaseUnityPlugin {
 #endif
 		Instance = this;
 
+		Apply = Config.Bind("Patches", "Apply", false, "Applies everything in this section, for use in the config manager");
+		CameraScrollEnabled = Config.Bind("Patches", "CameraScroll", true, "Enables Camera Scrolling");
+		InternalCameraScrollEnabled = CameraScrollEnabled.Value;
+
 		DefaultCameraScroll = Config.Bind("CameraScroll.Camera", "Default", 10f, "The default scroll value");
 		CameraScroll = DefaultCameraScroll.Value;
 		MinCameraScroll = Config.Bind("CameraScroll.Camera", "Min", 0f, "The minimum scroll value");
@@ -62,11 +72,35 @@ public class Plugin : BaseUnityPlugin {
 		KeyReset = Config.Bind("CameraScroll.Keybindings", "KeyReset", KeyCode.Mouse3, "Reset camera scroll values to default");
 		KeyTempReset = Config.Bind("CameraScroll.Keybindings", "KeyTempReset", KeyCode.Mouse4, "Toggles default and modified scroll");
 
+		if(InternalCameraScrollEnabled) {
+			_harmony.Patch(Method(typeof(CameraFollow), nameof(CameraFollow.LateUpdate)), transpiler: new HarmonyMethod(typeof(Patches), nameof(Patches.CameraScrollTrans)));
+		}
+
 		_harmony.PatchAll();
 	}
 
 	private void OnDestroy() {
 		_harmony?.UnpatchSelf();
+	}
+
+	public void Update() {
+		if(Apply.Value == true) {
+			Apply.Value = false;
+
+			MethodBase orig;
+			MethodInfo patch;
+			bool configval = CameraScrollEnabled.Value;
+			if(configval != InternalCameraScrollEnabled) {
+				orig = Method(typeof(CameraFollow), nameof(CameraFollow.LateUpdate));
+				patch = Method(typeof(Patches), nameof(Patches.CameraScrollTrans));
+				if(configval) {
+					_harmony.Patch(orig, transpiler: new HarmonyMethod(patch));
+				} else {
+					_harmony.Unpatch(orig, patch);
+				}
+				InternalCameraScrollEnabled = configval;
+			}
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -83,50 +117,51 @@ public class Plugin : BaseUnityPlugin {
 		[HarmonyPatch(typeof(CameraFollow), nameof(CameraFollow.Update))]
 		static class FCameraU {
 			static internal void Postfix() {
-				if(MouseScrollEnabled.Value && ModifierHandling()) {
-					CameraScroll += Input.mouseScrollDelta.y * MouseScrollMultiplier.Value;
-					if(CameraScroll < MinCameraScroll.Value) {
-						CameraScroll = MinCameraScroll.Value;
-					} else if(CameraScroll > MaxCameraScroll.Value) {
-						CameraScroll = MaxCameraScroll.Value;
-					}
-				}
-
-				if(KeyboardEnabled.Value) {
-					if(Input.GetKeyDown(KeyPlus.Value)) {
-						CameraScroll += KeyValue.Value;
-						if(CameraScroll > MaxCameraScroll.Value) {
-							CameraScroll = MaxCameraScroll.Value;
-						}
-					} else if(Input.GetKeyDown(KeyMinus.Value)) {
-						CameraScroll -= KeyValue.Value;
+				if(InternalCameraScrollEnabled) {
+					if(MouseScrollEnabled.Value && ModifierHandling()) {
+						CameraScroll += Input.mouseScrollDelta.y * MouseScrollMultiplier.Value;
 						if(CameraScroll < MinCameraScroll.Value) {
 							CameraScroll = MinCameraScroll.Value;
+						} else if(CameraScroll > MaxCameraScroll.Value) {
+							CameraScroll = MaxCameraScroll.Value;
 						}
 					}
-				}
 
-				if(Input.GetKeyDown(KeyReset.Value)) {
-					CameraScroll = DefaultCameraScroll.Value;
-					CameraScrolltemp = null;
-				}
+					if(KeyboardEnabled.Value) {
+						if(Input.GetKeyDown(KeyPlus.Value)) {
+							CameraScroll += KeyValue.Value;
+							if(CameraScroll > MaxCameraScroll.Value) {
+								CameraScroll = MaxCameraScroll.Value;
+							}
+						} else if(Input.GetKeyDown(KeyMinus.Value)) {
+							CameraScroll -= KeyValue.Value;
+							if(CameraScroll < MinCameraScroll.Value) {
+								CameraScroll = MinCameraScroll.Value;
+							}
+						}
+					}
 
-				if(Input.GetKeyDown(KeyTempReset.Value)) {
-					if(CameraScrolltemp == null) {
-						CameraScrolltemp = CameraScroll;
+					if(Input.GetKeyDown(KeyReset.Value)) {
 						CameraScroll = DefaultCameraScroll.Value;
-					} else {
-						CameraScroll = (float)CameraScrolltemp;
 						CameraScrolltemp = null;
+					}
+
+					if(Input.GetKeyDown(KeyTempReset.Value)) {
+						if(CameraScrolltemp == null) {
+							CameraScrolltemp = CameraScroll;
+							CameraScroll = DefaultCameraScroll.Value;
+						} else {
+							CameraScroll = (float)CameraScrolltemp;
+							CameraScrolltemp = null;
+						}
 					}
 				}
 			}
 		}
 	}
 
-	[HarmonyPatch(typeof(CameraFollow), nameof(CameraFollow.LateUpdate))]
-	static class CameraScrollPatch {
-		public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) {
+	static class Patches {
+		static internal IEnumerable<CodeInstruction> CameraScrollTrans(IEnumerable<CodeInstruction> instructions) {
 			int startidx = -1;
 			int endidx = -1;
 			List<CodeInstruction> codes = new(instructions);
